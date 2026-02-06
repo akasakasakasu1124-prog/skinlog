@@ -12,7 +12,7 @@
     label { display:block; margin-top:14px; font-weight:bold; }
     input, select, textarea { width:100%; margin-top:6px; padding:8px; font-size:14px; }
     textarea { height:100px; }
-    .note { font-size:12px; color:#555; background:#f0f0f0; padding:10px; margin-top:15px; border-radius:8px; }
+    .note { font-size:12px; color:#555; background:#f0f0f0; padding:10px; margin-top:15px; border-radius:8px; line-height:1.5; }
     .submit-area { margin-top:18px; }
     button { padding:10px 18px; font-size:16px; cursor:pointer; }
     .row { display:flex; gap:10px; flex-wrap:wrap; }
@@ -43,12 +43,13 @@
   <div class="row">
     <div>
       <label>施術内容（必須）</label>
-      <input id="procedure" type="text" placeholder="例：二重埋没、ヒアルロン酸注射">
+      <input id="procedure" type="text" placeholder="例：二重埋没、鼻フル、クマ取り">
     </div>
     <div>
       <label>地域（必須）</label>
       <select id="region">
         <option value="">選択してください</option>
+        <option>全国</option>
         <option>東京</option>
         <option>神奈川</option>
         <option>埼玉</option>
@@ -60,7 +61,10 @@
   </div>
 
   <label>クリニック名（必須）</label>
-  <input id="clinic" type="text" placeholder="正式名称を入力してください（医師名は書かないでください）">
+  <input id="clinic" type="text" placeholder="正式名称（医師名は書かないでください）">
+
+  <label>タグ（任意・おすすめ）</label>
+  <input id="tags" type="text" placeholder="例：埋没, 二重, 湘南, 東京（カンマ区切り）">
 
   <div class="row">
     <div>
@@ -99,7 +103,7 @@
   <textarea id="bad" placeholder="例：〜のように感じました（断定NG）"></textarea>
 
   <label>これから受ける人への注意点</label>
-  <textarea id="advice" placeholder="例：料金やダウンタイムは事前に確認した方が良い、など"></textarea>
+  <textarea id="advice" placeholder="例：料金・保証・ダウンタイムは事前確認、など"></textarea>
 
   <div class="note">
     ※本投稿は投稿者個人の体験および感想であり、医療行為の効果・安全性を保証するものではありません。<br>
@@ -138,6 +142,7 @@
     const procedure = document.getElementById("procedure").value.trim();
     const region = document.getElementById("region").value.trim();
     const clinic = document.getElementById("clinic").value.trim();
+    const tagsRaw = document.getElementById("tags").value.trim();
     const scale = document.getElementById("scale").value;
     const doctorType = document.getElementById("doctorType").value;
     const rating = document.getElementById("rating").value;
@@ -156,12 +161,17 @@
       return;
     }
 
+    // タグ：カンマ区切り -> 配列化
+    const tags = tagsRaw
+      ? tagsRaw.split(",").map(t => t.trim()).filter(Boolean)
+      : [];
+
     // 危険ワード検知（警告して投稿を止める）
     const dangerWords = [
       "詐欺","医療ミス","違法","最悪","訴える","返金","金返せ",
       "やばい","下手","殺された","ぼったくり","悪徳"
     ];
-    const allText = procedure + clinic + good + bad + advice;
+    const allText = (procedure + clinic + tags.join(" ") + good + bad + advice);
     for (let w of dangerWords) {
       if (allText.includes(w)) {
         alert(
@@ -175,7 +185,8 @@
     const post = {
       id: (crypto?.randomUUID ? crypto.randomUUID() : String(Date.now())),
       createdAt: new Date().toISOString(),
-      procedure, region, clinic, scale, doctorType, rating,
+      procedure, region, clinic, tags,
+      scale, doctorType, rating,
       good, bad, advice
     };
 
@@ -188,7 +199,7 @@
   }
 
   function clearForm() {
-    ["procedure","clinic","good","bad","advice"].forEach(id => document.getElementById(id).value = "");
+    ["procedure","clinic","tags","good","bad","advice"].forEach(id => document.getElementById(id).value = "");
     document.getElementById("region").value = "";
     document.getElementById("scale").value = "大手";
     document.getElementById("doctorType").value = "院長";

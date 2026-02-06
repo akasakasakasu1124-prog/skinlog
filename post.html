@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>体験談を投稿する</title>
+  <style>
+    body { font-family: sans-serif; background:#f7f7f7; padding:20px; }
+    .container { max-width:700px; margin:auto; background:#fff; padding:20px; border-radius:8px; }
+    a { text-decoration:none; color:#1a73e8; }
+    label { display:block; margin-top:14px; font-weight:bold; }
+    input, select, textarea { width:100%; margin-top:6px; padding:8px; font-size:14px; }
+    textarea { height:100px; }
+    .note { font-size:12px; color:#555; background:#f0f0f0; padding:10px; margin-top:15px; }
+    .submit-area { margin-top:18px; }
+    button { padding:10px 18px; font-size:16px; cursor:pointer; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; }
+    .row > div { flex:1; min-width:220px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div style="margin-bottom:10px;">
+      <a href="index.html">← トップに戻る</a> ｜ <a href="list.html">体験談一覧</a>
+    </div>
+
+    <h1>美容医療の体験談を投稿</h1>
+
+    <div class="row">
+      <div>
+        <label>施術内容</label>
+        <input id="procedure" type="text" placeholder="例：二重埋没、ヒアルロン酸注射">
+      </div>
+      <div>
+        <label>地域</label>
+        <select id="region">
+          <option value="">選択してください</option>
+          <option>東京</option>
+          <option>神奈川</option>
+          <option>埼玉</option>
+          <option>千葉</option>
+          <option>大阪</option>
+          <option>その他</option>
+        </select>
+      </div>
+    </div>
+
+    <label>クリニック名</label>
+    <input id="clinic" type="text" placeholder="正式名称を入力してください（医師名は書かないでください）">
+
+    <div class="row">
+      <div>
+        <label>クリニック規模</label>
+        <select id="scale">
+          <option>大手</option>
+          <option>中堅</option>
+          <option>個人</option>
+        </select>
+      </div>
+      <div>
+        <label>医師について</label>
+        <select id="doctorType">
+          <option>院長</option>
+          <option>勤務医</option>
+          <option>不明</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="note">※ 医師の個人名は記載できません（入力しないでください）</div>
+
+    <label>満足度</label>
+    <select id="rating">
+      <option>★☆☆☆☆</option>
+      <option>★★☆☆☆</option>
+      <option>★★★☆☆</option>
+      <option>★★★★☆</option>
+      <option>★★★★★</option>
+    </select>
+
+    <label>良かったと感じた点</label>
+    <textarea id="good" placeholder="あなたが良いと感じた点を教えてください（主語は『私の場合は〜』がおすすめ）"></textarea>
+
+    <label>不安・不満に感じた点</label>
+    <textarea id="bad" placeholder="不安に感じたことがあれば教えてください（断定せず『〜と感じた』がおすすめ）"></textarea>
+
+    <label>これから受ける人への注意点</label>
+    <textarea id="advice" placeholder="個人的に気をつけたほうがいいと思った点"></textarea>
+
+    <div class="note">
+      ※本投稿は投稿者個人の体験および感想であり、医療行為の効果・安全性を保証するものではありません。<br>
+      ※事実の断定や誹謗中傷を目的としたものではありません。
+    </div>
+
+    <div class="submit-area">
+      <label style="font-weight:normal;">
+        <input id="agree" type="checkbox">
+        本投稿は個人の感想であり、医師名の記載や断定的表現・誹謗中傷を含みません
+      </label>
+      <br><br>
+      <button type="button" onclick="savePost()">投稿する（保存）</button>
+      <button type="button" onclick="clearForm()" style="margin-left:8px;">入力を消す</button>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "reviews_v1";
+
+    function loadAll() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+      } catch {
+        return [];
+      }
+    }
+
+    function saveAll(arr) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+    }
+
+    function savePost() {
+      const agree = document.getElementById("agree").checked;
+      if (!agree) {
+        alert("チェックを入れてから投稿してください");
+        return;
+      }
+
+      const procedure = document.getElementById("procedure").value.trim();
+      const region = document.getElementById("region").value.trim();
+      const clinic = document.getElementById("clinic").value.trim();
+      const scale = document.getElementById("scale").value;
+      const doctorType = document.getElementById("doctorType").value;
+      const rating = document.getElementById("rating").value;
+      const good = document.getElementById("good").value.trim();
+      const bad = document.getElementById("bad").value.trim();
+      const advice = document.getElementById("advice").value.trim();
+// 危険ワード検知
+const dangerWords = [
+  "詐欺",
+  "医療ミス",
+  "違法",
+  "最悪",
+  "訴える",
+  "返金",
+  "金返せ",
+  "やばい",
+  "下手",
+  "殺された",
+  "ぼったくり",
+  "悪徳"
+];
+
+// 投稿内容を全部まとめる
+const allText =
+  procedure +
+  clinic +
+  good +
+  bad +
+  advice;
+
+// 危険ワードチェック
+for (let w of dangerWords) {
+  if (allText.includes(w)) {
+    alert(
+      "断定的・攻撃的な表現が含まれている可能性があります。\n\n" +
+      "『〜と感じた』『私の場合は〜』など\n" +
+      "主観的な表現に修正してください。"
+    );
+    return;
+  }
+}
+
+      if (!procedure || !region || !clinic) {
+        alert("『施術内容』『地域』『クリニック名』は必須です");
+        return;
+      }
+
+      // 医師名っぽい入力を軽く警告（完全防御ではなくMVPのガード）
+      if (clinic.includes("先生") || clinic.includes("Dr") || clinic.includes("医師")) {
+        alert("クリニック名欄に医師個人名が入っている可能性があります。クリニック名のみ入力してください。");
+        return;
+      }
+
+      const post = {
+        id: crypto?.randomUUID ? crypto.randomUUID() : String(Date.now()),
+        createdAt: new Date().toISOString(),
+        procedure, region, clinic, scale, doctorType, rating,
+        good, bad, advice
+      };
+
+      const all = loadAll();
+      all.unshift(post); // 新しい投稿を先頭に
+      saveAll(all);
+
+      alert("保存しました！一覧ページに移動します。");
+      window.location.href = "list.html";
+    }
+
+    function clearForm() {
+      ["procedure","clinic","good","bad","advice"].forEach(id => document.getElementById(id).value = "");
+      document.getElementById("region").value = "";
+      document.getElementById("scale").value = "大手";
+      document.getElementById("doctorType").value = "院長";
+      document.getElementById("rating").value = "★☆☆☆☆";
+      document.getElementById("agree").checked = false;
+    }
+  </script>
+</body>
+</html>
+

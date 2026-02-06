@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>体験談一覧</title>
+  <style>
+    body { font-family:sans-serif; background:#f7f7f7; padding:20px; }
+    .container { max-width:900px; margin:auto; }
+    a { text-decoration:none; color:#1a73e8; }
+    h1 { text-align:center; margin:10px 0 20px; }
+    .topbar { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+    .post { background:#fff; padding:18px; border-radius:8px; margin-bottom:16px; }
+    .meta { font-size:13px; color:#555; margin-bottom:8px; }
+    .rating { font-size:16px; margin-bottom:10px; }
+    .section-title { font-weight:bold; margin-top:10px; }
+    .note { font-size:12px; color:#666; margin-top:12px; background:#f0f0f0; padding:8px; }
+    .empty { background:#fff; padding:18px; border-radius:8px; color:#555; }
+    button { padding:8px 12px; cursor:pointer; }
+    .danger { background:#fff0f0; border:1px solid #ffd1d1; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <div>
+        <a href="index.html">← トップ</a> ｜ <a href="post.html">投稿する</a>
+      </div>
+      <div>
+        <button onclick="clearAll()">全投稿を削除（このPCだけ）</button>
+      </div>
+    </div>
+
+    <h1>美容医療の体験談一覧</h1>
+
+    <div id="list"></div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "reviews_v1";
+
+    function loadAll() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+      } catch {
+        return [];
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function render() {
+      const listEl = document.getElementById("list");
+      const all = loadAll();
+
+      if (all.length === 0) {
+        listEl.innerHTML = `
+          <div class="empty">
+            まだ投稿がありません。<br>
+            <a href="post.html">投稿ページ</a>からテスト投稿してみてください（内容は架空でもOK）。
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = all.map(p => {
+        const meta = `施術：${escapeHtml(p.procedure)}｜地域：${escapeHtml(p.region)}｜クリニック：${escapeHtml(p.clinic)}｜規模：${escapeHtml(p.scale)}｜医師：${escapeHtml(p.doctorType)}`;
+        const good = escapeHtml(p.good || "（未記入）");
+        const bad = escapeHtml(p.bad || "（未記入）");
+        const advice = escapeHtml(p.advice || "（未記入）");
+
+        return `
+          <div class="post">
+            <div class="meta">${meta}</div>
+            <div class="rating">満足度：${escapeHtml(p.rating)}</div>
+
+            <div class="section-title">良かったと感じた点</div>
+            <div>${good}</div>
+
+            <div class="section-title">不安・不満に感じた点</div>
+            <div>${bad}</div>
+
+            <div class="section-title">これから受ける人への注意点</div>
+            <div>${advice}</div>
+
+            <div class="note">
+              ※本投稿は投稿者個人の体験および感想です。医療効果・安全性を保証するものではありません。
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function clearAll() {
+      if (confirm("このブラウザに保存された投稿を全て削除します（元に戻せません）。削除しますか？")) {
+        localStorage.removeItem(STORAGE_KEY);
+        render();
+      }
+    }
+
+    render();
+  </script>
+</body>
+</html>

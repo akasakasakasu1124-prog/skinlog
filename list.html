@@ -14,13 +14,33 @@ body{font-family:sans-serif;background:#f7f7f7;padding:20px;}
 .section-title{font-weight:bold;margin-top:10px;}
 textarea{width:100%;height:80px;margin-top:5px;}
 button{margin-top:8px;padding:6px 12px;cursor:pointer;}
+.searchbox{
+  width:100%;
+  padding:12px;
+  font-size:16px;
+  margin-bottom:20px;
+  border-radius:10px;
+  border:1px solid #ccc;
+}
+.star{
+  font-size:20px;
+  margin:6px 0;
+}
 </style>
 </head>
 
 <body>
 <div class="container">
+
 <a href="index.html">←トップ</a>
 <h1>体験談一覧</h1>
+
+<input 
+  id="search"
+  class="searchbox"
+  placeholder="施術・クリニック・キーワード検索（例：埋没 湘南 クマ）"
+  oninput="render()"
+/>
 
 <div id="list"></div>
 </div>
@@ -47,13 +67,13 @@ function editPost(id){
  const p=all.find(x=>x.id===id);
  if(!p)return;
 
- const good=prompt("良かった点を編集",p.good);
+ const good=prompt("良かった点",p.good);
  if(good===null)return;
 
- const bad=prompt("不安・不満を編集",p.bad);
+ const bad=prompt("不安・不満",p.bad);
  if(bad===null)return;
 
- const advice=prompt("注意点を編集",p.advice);
+ const advice=prompt("注意点",p.advice);
  if(advice===null)return;
 
  p.good=good;
@@ -66,10 +86,20 @@ function editPost(id){
 
 function render(){
  const list=document.getElementById("list");
- const all=loadAll();
+ const keyword=document.getElementById("search").value.toLowerCase();
+ let all=loadAll();
+
+ // 検索フィルター
+ if(keyword){
+  all=all.filter(p=>
+   (p.procedure+p.clinic+p.good+p.bad+p.advice)
+   .toLowerCase()
+   .includes(keyword)
+  );
+ }
 
  if(all.length===0){
-  list.innerHTML="<p>まだ投稿なし</p>";
+  list.innerHTML="<p>該当する投稿がありません</p>";
   return;
  }
 
@@ -78,6 +108,8 @@ function render(){
    <div class="meta">
    ${p.procedure}｜${p.region}｜${p.clinic}
    </div>
+
+   <div class="star">満足度：${p.rating}</div>
 
    <div class="section-title">良かった点</div>
    <div>${p.good}</div>
@@ -93,6 +125,7 @@ function render(){
   </div>
  `).join("");
 }
+
 render();
 </script>
 </body>

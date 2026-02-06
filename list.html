@@ -7,136 +7,94 @@
 <title>体験談一覧</title>
 
 <style>
-body{
-  font-family:sans-serif;
-  background:#f7f7f7;
-  padding:20px;
-}
-.container{
-  max-width:900px;
-  margin:auto;
-}
-a{ text-decoration:none; color:#1a73e8;}
-h1{ text-align:center; }
-
-.post{
-  background:white;
-  padding:18px;
-  border-radius:10px;
-  margin-bottom:20px;
-}
-
-.meta{ font-size:13px; color:#555; margin-bottom:6px;}
-.rating{ font-size:16px; margin-bottom:10px;}
-.section-title{ font-weight:bold; margin-top:10px;}
-.note{
-  font-size:12px;
-  color:#666;
-  margin-top:12px;
-  background:#f0f0f0;
-  padding:8px;
-  border-radius:8px;
-}
-button{
-  padding:8px 12px;
-  margin-top:10px;
-  cursor:pointer;
-}
+body{font-family:sans-serif;background:#f7f7f7;padding:20px;}
+.container{max-width:900px;margin:auto;}
+.post{background:white;padding:18px;border-radius:10px;margin-bottom:20px;}
+.meta{font-size:13px;color:#555;margin-bottom:6px;}
+.section-title{font-weight:bold;margin-top:10px;}
+textarea{width:100%;height:80px;margin-top:5px;}
+button{margin-top:8px;padding:6px 12px;cursor:pointer;}
 </style>
 </head>
 
 <body>
-
-<script>
-const EMERGENCY_STOP = false;
-if(EMERGENCY_STOP){
- document.body.innerHTML = "<h1 style='text-align:center;margin-top:60px;'>現在メンテナンス中</h1>";
-}
-</script>
-
 <div class="container">
 <a href="index.html">←トップ</a>
 <h1>体験談一覧</h1>
-
-<button onclick="clearAll()">全投稿削除（テスト用）</button>
 
 <div id="list"></div>
 </div>
 
 <script>
-const STORAGE_KEY = "reviews_v1";
+const STORAGE_KEY="reviews_v1";
 
 function loadAll(){
-  try{
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-  }catch{
-    return [];
-  }
+ return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]");
 }
-
 function saveAll(arr){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+ localStorage.setItem(STORAGE_KEY,JSON.stringify(arr));
 }
 
 function deletePost(id){
-  let all = loadAll();
-  all = all.filter(p => p.id !== id);
-  saveAll(all);
-  render();
+ let all=loadAll();
+ all=all.filter(p=>p.id!==id);
+ saveAll(all);
+ render();
 }
 
-function clearAll(){
-  if(confirm("全部削除する？")){
-    localStorage.removeItem(STORAGE_KEY);
-    render();
-  }
-}
+function editPost(id){
+ const all=loadAll();
+ const p=all.find(x=>x.id===id);
+ if(!p)return;
 
-function escapeHtml(s){
- return String(s)
- .replaceAll("&","&amp;")
- .replaceAll("<","&lt;")
- .replaceAll(">","&gt;");
+ const good=prompt("良かった点を編集",p.good);
+ if(good===null)return;
+
+ const bad=prompt("不安・不満を編集",p.bad);
+ if(bad===null)return;
+
+ const advice=prompt("注意点を編集",p.advice);
+ if(advice===null)return;
+
+ p.good=good;
+ p.bad=bad;
+ p.advice=advice;
+
+ saveAll(all);
+ render();
 }
 
 function render(){
- const list = document.getElementById("list");
- const all = loadAll();
+ const list=document.getElementById("list");
+ const all=loadAll();
 
  if(all.length===0){
-  list.innerHTML="<p>まだ投稿がありません</p>";
+  list.innerHTML="<p>まだ投稿なし</p>";
   return;
  }
 
- list.innerHTML = all.map(p=>`
+ list.innerHTML=all.map(p=>`
   <div class="post">
-    <div class="meta">
-      施術：${escapeHtml(p.procedure)}｜地域：${escapeHtml(p.region)}｜クリニック：${escapeHtml(p.clinic)}
-    </div>
+   <div class="meta">
+   ${p.procedure}｜${p.region}｜${p.clinic}
+   </div>
 
-    <div class="rating">満足度：${p.rating}</div>
+   <div class="section-title">良かった点</div>
+   <div>${p.good}</div>
 
-    <div class="section-title">良かった点</div>
-    <div>${escapeHtml(p.good)}</div>
+   <div class="section-title">不安・不満</div>
+   <div>${p.bad}</div>
 
-    <div class="section-title">不安・不満</div>
-    <div>${escapeHtml(p.bad)}</div>
+   <div class="section-title">注意点</div>
+   <div>${p.advice}</div>
 
-    <div class="section-title">注意点</div>
-    <div>${escapeHtml(p.advice)}</div>
-
-    <div class="note">
-    ※個人の体験・感想です
-    </div>
-
-    <button onclick="deletePost('${p.id}')">この投稿を削除</button>
+   <button onclick="editPost('${p.id}')">編集</button>
+   <button onclick="deletePost('${p.id}')">削除</button>
   </div>
  `).join("");
 }
-
 render();
 </script>
-
 </body>
 </html>
 

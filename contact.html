@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="robots" content="index, follow">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>通報・お問い合わせ</title>
+  <style>
+    body{font-family:sans-serif;background:#f7f7f7;padding:20px;}
+    .box{max-width:900px;margin:auto;background:#fff;padding:20px;border-radius:10px;line-height:1.7;}
+    input,textarea{width:100%;padding:10px;margin-top:6px;}
+    textarea{height:140px;}
+    .small{font-size:12px;color:#666;}
+    button{padding:10px 16px;cursor:pointer;margin-top:10px;}
+  </style>
+</head>
+<body>
+<div class="box">
+  <a href="index.html">←トップ</a>
+  <h1>通報・お問い合わせ</h1>
+
+  <p class="small">
+    ※現時点はデモ版のため、送信フォームはメール起動（mailto）方式です。<br>
+    送信先メールはあなたが後で差し替えてください。
+  </p>
+
+  <label>件名</label>
+  <input id="subject" placeholder="例：投稿の削除依頼 / 表現の修正依頼">
+
+  <label>内容</label>
+  <textarea id="body" placeholder="対象ページURL・問題箇所・理由などを書いてください"></textarea>
+
+  <button onclick="sendMail()">メールで送る</button>
+
+  <script>
+    function sendMail(){
+      const to = "you@example.com"; // ←ここをあなたの連絡先に変える
+      const subject = encodeURIComponent(document.getElementById("subject").value || "お問い合わせ");
+      const body = encodeURIComponent(document.getElementById("body").value || "");
+      location.href = `mailto:${to}?subject=${subject}&body=${body}`;
+    }
+  </script>
+
+  <div style="margin-top:20px;font-size:12px;color:#666;">
+    <a href="terms.html">利用規約</a> ｜ <a href="privacy.html">プライバシー</a>
+  </div>
+</div>
+</body>
+</html>

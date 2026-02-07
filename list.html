@@ -1,264 +1,59 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-2DE5BMZH8W"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-2DE5BMZH8W');
-</script>
 <meta charset="UTF-8">
-<meta name="robots" content="index, follow">
+<title>一覧</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>体験談一覧</title>
 
-<style>
-  body{font-family:sans-serif;background:#f7f7f7;padding:20px;}
-  .container{max-width:900px;margin:auto;}
-  a{ text-decoration:none; color:#1a73e8; }
-  h1{ text-align:center; margin:10px 0 14px; }
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-  .bar{ display:flex; gap:10px; flex-wrap:wrap; margin: 10px 0 18px; }
-  .searchbox{
-    flex: 1;
-    min-width: 240px;
-    padding:12px;
-    font-size:16px;
-    border-radius:10px;
-    border:1px solid #ccc;
-  }
-  select{
-    padding:12px;
-    font-size:16px;
-    border-radius:10px;
-    border:1px solid #ccc;
-    background:#fff;
-  }
+const firebaseConfig = {
+  apiKey: "AIzaSyByAjXDKu5doIYKDL3uuU0zqMENxhStFWg",
+  authDomain: "skinlog-a06a9.firebaseapp.com",
+  projectId: "skinlog-a06a9",
+  storageBucket: "skinlog-a06a9.firebasestorage.app",
+  messagingSenderId: "784247637066",
+  appId: "1:784247637066:web:ba77376f09feb60aedd2b3"
+};
 
-  .post{background:#fff;padding:18px;border-radius:10px;margin-bottom:18px;}
-  .meta{font-size:13px;color:#555;margin-bottom:6px;}
-  .star{font-size:18px;margin:6px 0;}
-  .section-title{font-weight:bold;margin-top:10px;}
-  .note{font-size:12px;color:#666;margin-top:12px;background:#f0f0f0;padding:8px;border-radius:8px;}
-  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
-  button{padding:8px 12px;cursor:pointer;}
-  .tag{
-    border:1px solid #ddd;
-    background:#fff;
-    border-radius:999px;
-    padding:6px 10px;
-    font-size:13px;
-    cursor:pointer;
-  }
-</style>
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+async function load(){
+ const q = query(collection(db,"posts"),orderBy("created","desc"));
+ const snap = await getDocs(q);
+
+ let html="";
+
+ snap.forEach(doc=>{
+  const p=doc.data();
+
+  html+=`
+  <div style="border:1px solid #ccc;padding:15px;margin:10px 0">
+  <b>${p.procedure}</b> (${p.region})<br>
+  クリニック：${p.clinic}<br>
+  満足度：${p.rating}<br><br>
+  良かった：${p.good}<br><br>
+  不満：${p.bad}<br><br>
+  注意：${p.advice}
+  </div>
+  `;
+ });
+
+ document.getElementById("area").innerHTML=html;
+}
+
+window.onload=load;
+</script>
+
 </head>
 
-<body>
-<div class="container">
-  <a href="index.html">←トップ</a>
-  <h1>体験談一覧</h1>
+<body style="font-family:sans-serif;max-width:700px;margin:auto;padding:20px">
 
-  <div class="bar">
-    <input
-      id="search"
-      class="searchbox"
-      placeholder="掛け算検索OK（例：湘南 埋没 / 鼻フル 東京）"
-      oninput="render()"
-    />
-    <select id="sort" onchange="render()">
-      <option value="new">新しい順</option>
-      <option value="rating_desc">満足度：高い順</option>
-      <option value="rating_asc">満足度：低い順</option>
-    </select>
-  </div>
-
-  <div id="list"></div>
-</div>
-
-<script>
-const STORAGE_KEY = "reviews_v1";
-
-function loadAll(){
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }
-  catch { return []; }
-}
-function saveAll(arr){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
-}
-function escapeHtml(s){
-  return String(s ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-function ratingToNum(r){
-  // "★★★☆☆" -> 3
-  return (String(r).match(/★/g) || []).length;
-}
-
-function setSearch(text){
-  const el = document.getElementById("search");
-  el.value = text;
-  render();
-}
-
-function deletePost(id){
-  const all = loadAll().filter(p => p.id !== id);
-  saveAll(all);
-  render();
-}
-
-// 編集：ポップアップ(prompt)じゃなく、画面内で編集する方式（安定）
-function startEdit(id){
-  const all = loadAll();
-  const p = all.find(x => x.id === id);
-  if(!p) return;
-
-  const card = document.getElementById("card-" + id);
-  card.innerHTML = `
-    <div class="meta">
-      施術：${escapeHtml(p.procedure)}｜地域：${escapeHtml(p.region)}｜クリニック：${escapeHtml(p.clinic)}
-    </div>
-
-    <div class="star">満足度：${escapeHtml(p.rating)}</div>
-
-    <div class="section-title">良かった点（編集）</div>
-    <textarea id="good-${id}" style="width:100%;height:90px;padding:8px;">${escapeHtml(p.good)}</textarea>
-
-    <div class="section-title">不安・不満（編集）</div>
-    <textarea id="bad-${id}" style="width:100%;height:90px;padding:8px;">${escapeHtml(p.bad)}</textarea>
-
-    <div class="section-title">注意点（編集）</div>
-    <textarea id="advice-${id}" style="width:100%;height:90px;padding:8px;">${escapeHtml(p.advice)}</textarea>
-
-    <div class="row" style="margin-top:10px;">
-      <button onclick="saveEdit('${id}')">保存</button>
-      <button onclick="render()">キャンセル</button>
-      <button onclick="deletePost('${id}')">削除</button>
-    </div>
-
-    <div class="note">※主観表現推奨／断定・誹謗中傷NG（安全運用）</div>
-  `;
-}
-
-function saveEdit(id){
-  const all = loadAll();
-  const p = all.find(x => x.id === id);
-  if(!p) return;
-
-  p.good = document.getElementById("good-" + id).value.trim();
-  p.bad = document.getElementById("bad-" + id).value.trim();
-  p.advice = document.getElementById("advice-" + id).value.trim();
-
-  saveAll(all);
-  render();
-}
-
-// AND検索：スペース区切りで全部含むものだけ表示
-function tokenize(q){
-  return q
-    .split(/\s+/)
-    .map(s => s.trim())
-    .filter(Boolean);
-}
-
-function render(){
-  const listEl = document.getElementById("list");
-  const q = document.getElementById("search").value.toLowerCase();
-  const tokens = tokenize(q);
-  const sort = document.getElementById("sort").value;
-
-  let all = loadAll();
-
-  // フィルター（AND）
-  if(tokens.length){
-    all = all.filter(p => {
-      const tags = Array.isArray(p.tags) ? p.tags.join(" ") : "";
-      const hay = (
-        (p.procedure||"") + " " +
-        (p.region||"") + " " +
-        (p.clinic||"") + " " +
-        tags + " " +
-        (p.good||"") + " " +
-        (p.bad||"") + " " +
-        (p.advice||"")
-      ).toLowerCase();
-
-      return tokens.every(t => hay.includes(t));
-    });
-  }
-
-  // 並び替え
-  if(sort === "rating_desc"){
-    all.sort((a,b) => ratingToNum(b.rating) - ratingToNum(a.rating));
-  } else if(sort === "rating_asc"){
-    all.sort((a,b) => ratingToNum(a.rating) - ratingToNum(b.rating));
-  } else {
-    // 新しい順（createdAtがなければidの時刻っぽさで）
-    all.sort((a,b) => {
-      const ta = Date.parse(a.createdAt || "") || 0;
-      const tb = Date.parse(b.createdAt || "") || 0;
-      return tb - ta;
-    });
-  }
-
-  if(all.length === 0){
-    listEl.innerHTML = "<p>該当する投稿がありません</p>";
-    return;
-  }
-
-  listEl.innerHTML = all.map(p => {
-    const tags = Array.isArray(p.tags) ? p.tags : [];
-    const tagsHtml = tags.length
-      ? `<div class="row" style="margin-top:8px;">
-          ${tags.map(t => `<span class="tag" onclick="setSearch('${escapeHtml(t)}')">#${escapeHtml(t)}</span>`).join("")}
-        </div>`
-      : "";
-
-    return `
-      <div class="post" id="card-${escapeHtml(p.id)}">
-        <div class="meta">
-          施術：${escapeHtml(p.procedure)}｜地域：${escapeHtml(p.region)}｜クリニック：${escapeHtml(p.clinic)}
-        </div>
-
-        <div class="star">満足度：${escapeHtml(p.rating)}（${ratingToNum(p.rating)}/5）</div>
-
-        ${tagsHtml}
-
-        <div class="section-title">良かった点</div>
-        <div>${escapeHtml(p.good)}</div>
-
-        <div class="section-title">不安・不満</div>
-        <div>${escapeHtml(p.bad)}</div>
-
-        <div class="section-title">注意点</div>
-        <div>${escapeHtml(p.advice)}</div>
-
-        <div class="row" style="margin-top:10px;">
-          <button onclick="startEdit('${escapeHtml(p.id)}')">編集</button>
-          <button onclick="deletePost('${escapeHtml(p.id)}')">削除</button>
-        </div>
-
-        <div class="note">※個人の体験・感想です（主観表現推奨）</div>
-      </div>
-    `;
-  }).join("");
-}
-
-render();
-</script>
-<div style="margin-top:40px;font-size:12px;color:#666;text-align:center;">
-  <a href="terms.html">利用規約</a> ｜ 
-  <a href="privacy.html">プライバシー</a> ｜ 
-  <a href="contact.html">通報・お問い合わせ</a>
-</div>
+<h2>体験談一覧</h2>
+<div id="area">読み込み中...</div>
 
 </body>
 </html>
-
-

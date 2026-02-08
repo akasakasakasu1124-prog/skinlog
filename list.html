@@ -1,59 +1,263 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>一覧</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>体験談一覧 | skinlog</title>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans JP",sans-serif;background:#f7f7f7;margin:0}
+    .wrap{max-width:1000px;margin:0 auto;padding:24px}
+    .card{background:#fff;border-radius:12px;padding:18px;margin:14px 0}
+    a{color:#1a73e8;text-decoration:none}
+    .bar{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+    input,select,textarea{padding:10px;border:1px solid #ccc;border-radius:10px;font-size:15px}
+    .search{flex:1;min-width:240px}
+    .post{border:1px solid #e5e5e5;border-radius:12px;padding:16px;margin:12px 0;background:#fff}
+    .meta{color:#555;font-size:13px}
+    .star{font-size:18px;margin:6px 0}
+    .tag{display:inline-block;border:1px solid #ddd;border-radius:999px;padding:6px 10px;font-size:13px;margin:6px 8px 0 0;cursor:pointer;background:#fff}
+    .btn{padding:8px 12px;border-radius:10px;border:1px solid #ccc;background:#fff;cursor:pointer}
+    .btnDanger{padding:8px 12px;border-radius:10px;border:1px solid #f2b8b5;background:#fff;cursor:pointer}
+    .note{font-size:12px;color:#666;background:#f0f0f0;padding:10px;border-radius:10px;margin-top:10px}
+    .muted{color:#666;font-size:12px;line-height:1.6}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    textarea{width:100%;height:90px}
+  </style>
 
-const firebaseConfig = {
-  apiKey: "AIzaSyByAjXDKu5doIYKDL3uuU0zqMENxhStFWg",
-  authDomain: "skinlog-a06a9.firebaseapp.com",
-  projectId: "skinlog-a06a9",
-  storageBucket: "skinlog-a06a9.firebasestorage.app",
-  messagingSenderId: "784247637066",
-  appId: "1:784247637066:web:ba77376f09feb60aedd2b3"
-};
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+    const firebaseConfig = {
+      apiKey: "AIzaSyByAjXDKu5doIYKDL3uuU0zqMENxhStFWg",
+      authDomain: "skinlog-a06a9.firebaseapp.com",
+      projectId: "skinlog-a06a9",
+      storageBucket: "skinlog-a06a9.firebasestorage.app",
+      messagingSenderId: "784247637066",
+      appId: "1:784247637066:web:ba77376f09feb60aedd2b3"
+    };
 
-async function load(){
- const q = query(collection(db,"posts"),orderBy("created","desc"));
- const snap = await getDocs(q);
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
 
- let html="";
+    let currentUid = null;
+    let allPosts = []; // {id, data}
 
- snap.forEach(doc=>{
-  const p=doc.data();
+    function escapeHtml(s){
+      return String(s ?? "")
+        .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+    }
 
-  html+=`
-  <div style="border:1px solid #ccc;padding:15px;margin:10px 0">
-  <b>${p.procedure}</b> (${p.region})<br>
-  クリニック：${p.clinic}<br>
-  満足度：${p.rating}<br><br>
-  良かった：${p.good}<br><br>
-  不満：${p.bad}<br><br>
-  注意：${p.advice}
-  </div>
-  `;
- });
+    function numToStars(n){
+      n = Math.max(0, Math.min(5, Number(n)||0));
+      return "★".repeat(n) + "☆".repeat(5-n);
+    }
 
- document.getElementById("area").innerHTML=html;
-}
+    function tokenize(q){
+      return q.split(/\s+/).map(x=>x.trim()).filter(Boolean);
+    }
 
-window.onload=load;
-</script>
+    async function ensureAuth() {
+      return new Promise((resolve, reject) => {
+        onAuthStateChanged(auth, async (user) => {
+          try {
+            if (user) { currentUid = user.uid; resolve(user); }
+            else {
+              const res = await signInAnonymously(auth);
+              currentUid = res.user.uid;
+              resolve(res.user);
+            }
+          } catch (e) { reject(e); }
+        });
+      });
+    }
 
+    async function loadAll(){
+      const status = document.getElementById("status");
+      status.textContent = "読み込み中...";
+
+      try{
+        // Firestore側は新しい順で取得（並び替えは後でクライアントでもできる）
+        const q = query(collection(db,"posts"), orderBy("createdAt","desc"));
+        const snap = await getDocs(q);
+
+        allPosts = [];
+        snap.forEach(d => allPosts.push({ id: d.id, data: d.data() }));
+
+        status.textContent = "";
+        render();
+      }catch(e){
+        console.error(e);
+        status.textContent = "読み込み失敗：" + (e?.message || e);
+      }
+    }
+
+    function matches(post, tokens){
+      if(!tokens.length) return true;
+      const p = post.data;
+      const tags = Array.isArray(p.tags) ? p.tags.join(" ") : "";
+      const hay = (
+        (p.procedure||"")+" "+(p.region||"")+" "+(p.clinic||"")+" "+tags+" "+
+        (p.good||"")+" "+(p.bad||"")+" "+(p.advice||"")
+      ).toLowerCase();
+      return tokens.every(t => hay.includes(t));
+    }
+
+    window.setSearch = (t) => {
+      const el = document.getElementById("search");
+      el.value = t;
+      render();
+    };
+
+    window.render = () => {
+      const area = document.getElementById("area");
+      const q = (document.getElementById("search").value || "").toLowerCase();
+      const tokens = tokenize(q);
+      const sort = document.getElementById("sort").value;
+
+      let list = allPosts.filter(p => matches(p, tokens));
+
+      if (sort === "rating_desc") list.sort((a,b) => (b.data.rating||0) - (a.data.rating||0));
+      else if (sort === "rating_asc") list.sort((a,b) => (a.data.rating||0) - (b.data.rating||0));
+      else {
+        // new: Firestore取得がdescなのでそのまま
+      }
+
+      if(list.length === 0){
+        area.innerHTML = `<div class="muted">該当する投稿がありません</div>`;
+        return;
+      }
+
+      area.innerHTML = list.map(p => {
+        const d = p.data;
+        const tags = Array.isArray(d.tags) ? d.tags : [];
+        const tagsHtml = tags.length
+          ? `<div class="row" style="margin-top:8px;">
+               ${tags.map(t => `<span class="tag" onclick="setSearch('${escapeHtml(t)}')">#${escapeHtml(t)}</span>`).join("")}
+             </div>`
+          : "";
+
+        const isMine = (d.ownerUid && currentUid && d.ownerUid === currentUid);
+
+        return `
+          <div class="post" id="card-${escapeHtml(p.id)}">
+            <div class="meta">
+              施術：${escapeHtml(d.procedure)}｜地域：${escapeHtml(d.region)}｜クリニック：${escapeHtml(d.clinic)}
+            </div>
+            <div class="star">満足度：${escapeHtml(numToStars(d.rating ?? 0))}（${escapeHtml(d.rating ?? 0)}/5）</div>
+            ${tagsHtml}
+            <div style="margin-top:10px"><b>良かった点</b><br>${escapeHtml(d.good)}</div>
+            <div style="margin-top:10px"><b>不安・不満</b><br>${escapeHtml(d.bad)}</div>
+            <div style="margin-top:10px"><b>注意点</b><br>${escapeHtml(d.advice)}</div>
+
+            <div class="row" style="margin-top:12px">
+              ${isMine ? `<button class="btn" onclick="startEdit('${escapeHtml(p.id)}')">編集</button>
+                         <button class="btnDanger" onclick="deletePost('${escapeHtml(p.id)}')">削除</button>`
+                       : `<span class="muted">※編集/削除は投稿者のみ</span>`}
+            </div>
+
+            <div class="note">※個人の体験・感想です（主観表現推奨）</div>
+          </div>
+        `;
+      }).join("");
+    };
+
+    window.startEdit = (id) => {
+      const found = allPosts.find(x => x.id === id);
+      if(!found) return;
+
+      const d = found.data;
+      const card = document.getElementById("card-" + id);
+      card.innerHTML = `
+        <div class="meta">
+          施術：${escapeHtml(d.procedure)}｜地域：${escapeHtml(d.region)}｜クリニック：${escapeHtml(d.clinic)}
+        </div>
+        <div class="star">満足度：${escapeHtml(numToStars(d.rating ?? 0))}（${escapeHtml(d.rating ?? 0)}/5）</div>
+
+        <div style="margin-top:10px"><b>良かった点（編集）</b></div>
+        <textarea id="good-${id}">${escapeHtml(d.good)}</textarea>
+
+        <div style="margin-top:10px"><b>不安・不満（編集）</b></div>
+        <textarea id="bad-${id}">${escapeHtml(d.bad)}</textarea>
+
+        <div style="margin-top:10px"><b>注意点（編集）</b></div>
+        <textarea id="advice-${id}">${escapeHtml(d.advice)}</textarea>
+
+        <div class="row" style="margin-top:12px">
+          <button class="btn" onclick="saveEdit('${escapeHtml(id)}')">保存</button>
+          <button class="btn" onclick="render()">キャンセル</button>
+          <button class="btnDanger" onclick="deletePost('${escapeHtml(id)}')">削除</button>
+        </div>
+
+        <div class="note">※断定表現や誹謗中傷は避けて「私の場合は〜と感じた」推奨</div>
+      `;
+    };
+
+    window.saveEdit = async (id) => {
+      const good = document.getElementById("good-" + id).value.trim();
+      const bad = document.getElementById("bad-" + id).value.trim();
+      const advice = document.getElementById("advice-" + id).value.trim();
+
+      try{
+        await updateDoc(doc(db,"posts",id), {
+          good, bad, advice,
+          updatedAt: serverTimestamp()
+        });
+        await loadAll();
+      }catch(e){
+        console.error(e);
+        alert("保存できません（投稿者本人のみ編集できます）。Firestoreルールも確認してください。");
+      }
+    };
+
+    window.deletePost = async (id) => {
+      if(!confirm("この投稿を削除しますか？")) return;
+      try{
+        await deleteDoc(doc(db,"posts",id));
+        await loadAll();
+      }catch(e){
+        console.error(e);
+        alert("削除できません（投稿者本人のみ削除できます）。Firestoreルールも確認してください。");
+      }
+    };
+
+    // 起動
+    (async () => {
+      await ensureAuth();       // 匿名ログイン（編集/削除判定に必要）
+      await loadAll();          // 読み込み
+    })();
+  </script>
 </head>
 
-<body style="font-family:sans-serif;max-width:700px;margin:auto;padding:20px">
+<body>
+  <div class="wrap">
+    <div class="card">
+      <a href="index.html">←トップ</a> ｜ <a href="post.html">投稿する</a>
+      <h2 style="margin:10px 0 0">体験談一覧</h2>
 
-<h2>体験談一覧</h2>
-<div id="area">読み込み中...</div>
+      <div class="bar">
+        <input id="search" class="search" placeholder="掛け算検索OK（例：湘南 埋没 / 鼻フル 東京）" oninput="render()">
+        <select id="sort" onchange="render()">
+          <option value="new">新しい順</option>
+          <option value="rating_desc">満足度：高い順</option>
+          <option value="rating_asc">満足度：低い順</option>
+        </select>
+      </div>
 
+      <div id="status" class="muted" style="margin-top:10px"></div>
+      <div id="area" style="margin-top:12px"></div>
+    </div>
+
+    <div style="margin-top:40px;font-size:12px;color:#666;text-align:center;">
+      <a href="terms.html">利用規約</a> ｜ 
+      <a href="privacy.html">プライバシー</a> ｜ 
+      <a href="contact.html">通報・お問い合わせ</a>
+    </div>
+  </div>
 </body>
 </html>
+

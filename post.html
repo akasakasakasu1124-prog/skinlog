@@ -1,80 +1,237 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>投稿</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>投稿 | skinlog</title>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans JP",sans-serif;background:#f7f7f7;margin:0}
+    .wrap{max-width:900px;margin:0 auto;padding:24px}
+    .card{background:#fff;border-radius:12px;padding:18px;margin:14px 0}
+    label{display:block;margin-top:12px;font-weight:700}
+    input,select,textarea{width:100%;padding:10px;margin-top:6px;border:1px solid #ccc;border-radius:10px;font-size:15px}
+    textarea{height:110px}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .row > div{flex:1;min-width:220px}
+    .btn{background:#111;color:#fff;border:none;border-radius:10px;padding:11px 14px;font-size:16px;cursor:pointer}
+    .btn2{background:#fff;border:1px solid #ccc;border-radius:10px;padding:11px 14px;font-size:16px;cursor:pointer}
+    .muted{color:#666;font-size:12px;line-height:1.6}
+    a{color:#1a73e8;text-decoration:none}
+  </style>
 
-const firebaseConfig = {
-  apiKey: "AIzaSyByAjXDKu5doIYKDL3uuU0zqMENxhStFWg",
-  authDomain: "skinlog-a06a9.firebaseapp.com",
-  projectId: "skinlog-a06a9",
-  storageBucket: "skinlog-a06a9.firebasestorage.app",
-  messagingSenderId: "784247637066",
-  appId: "1:784247637066:web:ba77376f09feb60aedd2b3"
-};
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+    // あなたのFirebase設定
+    const firebaseConfig = {
+      apiKey: "AIzaSyByAjXDKu5doIYKDL3uuU0zqMENxhStFWg",
+      authDomain: "skinlog-a06a9.firebaseapp.com",
+      projectId: "skinlog-a06a9",
+      storageBucket: "skinlog-a06a9.firebasestorage.app",
+      messagingSenderId: "784247637066",
+      appId: "1:784247637066:web:ba77376f09feb60aedd2b3"
+    };
 
-window.sendPost = async function(){
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
 
-  const data = {
-    procedure: document.getElementById("procedure").value,
-    region: document.getElementById("region").value,
-    clinic: document.getElementById("clinic").value,
-    rating: document.getElementById("rating").value,
-    good: document.getElementById("good").value,
-    bad: document.getElementById("bad").value,
-    advice: document.getElementById("advice").value,
-    created: serverTimestamp()
-  };
+    let currentUid = null;
 
-  await addDoc(collection(db,"posts"),data);
+    async function ensureAuth() {
+      return new Promise((resolve, reject) => {
+        onAuthStateChanged(auth, async (user) => {
+          try {
+            if (user) {
+              currentUid = user.uid;
+              resolve(user);
+            } else {
+              const res = await signInAnonymously(auth);
+              currentUid = res.user.uid;
+              resolve(res.user);
+            }
+          } catch (e) {
+            reject(e);
+          }
+        });
+      });
+    }
 
-  alert("投稿完了");
-  location.href="list.html";
-}
-</script>
+    function starsToNum(s){
+      const m = String(s || "").match(/★/g);
+      return m ? m.length : 0;
+    }
 
+    window.submitPost = async () => {
+      const status = document.getElementById("status");
+      status.textContent = "";
+
+      const agree = document.getElementById("agree").checked;
+      if (!agree) { alert("チェックを入れてから投稿してください"); return; }
+
+      const procedure = document.getElementById("procedure").value.trim();
+      const region = document.getElementById("region").value.trim();
+      const clinic = document.getElementById("clinic").value.trim();
+      const tagsRaw = document.getElementById("tags").value.trim();
+      const scale = document.getElementById("scale").value;
+      const doctorType = document.getElementById("doctorType").value;
+      const ratingText = document.getElementById("rating").value;
+      const rating = starsToNum(ratingText);
+      const good = document.getElementById("good").value.trim();
+      const bad = document.getElementById("bad").value.trim();
+      const advice = document.getElementById("advice").value.trim();
+
+      if (!procedure || !region || !clinic) {
+        alert("『施術内容』『地域』『クリニック名』は必須です");
+        return;
+      }
+
+      // 医師名っぽいの軽ブロック（完全防御ではないが抑止）
+      const clinicLower = clinic.toLowerCase();
+      if (clinic.includes("先生") || clinicLower.includes("dr") || clinic.includes("医師")) {
+        alert("クリニック名欄に医師個人名が含まれている可能性があります。クリニック名のみにしてください。");
+        return;
+      }
+
+      // タグ（カンマ区切り）
+      const tags = tagsRaw
+        ? tagsRaw.split(",").map(t => t.trim()).filter(Boolean)
+        : [];
+
+      // 危険ワード検知（強めの断定/攻撃ワードを抑止）
+      const dangerWords = [
+        "詐欺","医療ミス","違法","最悪","訴える","金返せ","返金",
+        "殺された","悪徳","ぼったくり","下手","やばい"
+      ];
+      const allText = (procedure + " " + clinic + " " + tags.join(" ") + " " + good + " " + bad + " " + advice);
+      for (const w of dangerWords) {
+        if (allText.includes(w)) {
+          alert("断定的・攻撃的な表現が含まれる可能性があります。\n『私の場合は〜と感じた』など主観表現に修正してください。");
+          return;
+        }
+      }
+
+      try {
+        status.textContent = "ログイン確認中...";
+        await ensureAuth();
+
+        status.textContent = "投稿中...";
+        await addDoc(collection(db, "posts"), {
+          procedure, region, clinic, tags,
+          scale, doctorType,
+          rating, ratingText,
+          good, bad, advice,
+          ownerUid: currentUid,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+
+        alert("投稿しました！");
+        location.href = "list.html";
+      } catch (e) {
+        console.error(e);
+        alert("投稿に失敗しました。Firestoreのルール/匿名ログイン設定を確認してください。");
+        status.textContent = "エラー：" + (e?.message || e);
+      }
+    };
+
+    window.clearForm = () => {
+      ["procedure","clinic","tags","good","bad","advice"].forEach(id => document.getElementById(id).value = "");
+      document.getElementById("region").value = "";
+      document.getElementById("scale").value = "大手";
+      document.getElementById("doctorType").value = "院長";
+      document.getElementById("rating").value = "★☆☆☆☆";
+      document.getElementById("agree").checked = false;
+      document.getElementById("status").textContent = "";
+    };
+  </script>
 </head>
 
-<body style="font-family:sans-serif;max-width:700px;margin:auto;padding:20px">
+<body>
+  <div class="wrap">
+    <div class="card">
+      <a href="index.html">←トップ</a> ｜ <a href="list.html">体験談一覧</a>
+      <h2 style="margin:10px 0 0">体験談を投稿</h2>
+      <div class="muted">※医師名は禁止。断定せず「私の場合は〜と感じた」推奨。</div>
 
-<h2>体験談投稿</h2>
+      <div class="row">
+        <div>
+          <label>施術内容（必須）</label>
+          <input id="procedure" placeholder="例：二重埋没、鼻フル、クマ取り">
+        </div>
+        <div>
+          <label>地域（必須）</label>
+          <select id="region">
+            <option value="">選択してください</option>
+            <option>東京</option><option>神奈川</option><option>埼玉</option><option>千葉</option>
+            <option>大阪</option><option>その他</option>
+          </select>
+        </div>
+      </div>
 
-施術<br>
-<input id="procedure"><br><br>
+      <label>クリニック名（必須）</label>
+      <input id="clinic" placeholder="正式名称（医師名は書かない）">
 
-地域<br>
-<input id="region"><br><br>
+      <label>タグ（任意）</label>
+      <input id="tags" placeholder="例：埋没, 二重, 湘南, 東京（カンマ区切り）">
 
-クリニック<br>
-<input id="clinic"><br><br>
+      <div class="row">
+        <div>
+          <label>クリニック規模</label>
+          <select id="scale">
+            <option>大手</option><option>中堅</option><option>個人</option>
+          </select>
+        </div>
+        <div>
+          <label>医師について（個人名NG）</label>
+          <select id="doctorType">
+            <option>院長</option><option>勤務医</option><option>不明</option>
+          </select>
+        </div>
+      </div>
 
-満足度<br>
-<select id="rating">
-<option>★</option>
-<option>★★</option>
-<option>★★★</option>
-<option>★★★★</option>
-<option>★★★★★</option>
-</select><br><br>
+      <label>満足度</label>
+      <select id="rating">
+        <option>★☆☆☆☆</option>
+        <option>★★☆☆☆</option>
+        <option>★★★☆☆</option>
+        <option>★★★★☆</option>
+        <option>★★★★★</option>
+      </select>
 
-良かった点<br>
-<textarea id="good"></textarea><br><br>
+      <label>良かったと感じた点</label>
+      <textarea id="good" placeholder="例：私の場合は〜と感じました"></textarea>
 
-不満点<br>
-<textarea id="bad"></textarea><br><br>
+      <label>不安・不満に感じた点</label>
+      <textarea id="bad" placeholder="例：〜のように感じました（断定NG）"></textarea>
 
-注意点<br>
-<textarea id="advice"></textarea><br><br>
+      <label>これから受ける人への注意点</label>
+      <textarea id="advice" placeholder="例：保証内容・料金・ダウンタイムの確認など"></textarea>
 
-<button onclick="sendPost()">投稿する</button>
+      <div class="muted" style="background:#f0f0f0;padding:10px;border-radius:10px;margin-top:12px">
+        ※本投稿は個人の体験・感想です。医療行為の効果・安全性を保証しません。
+      </div>
 
+      <label style="font-weight:400;margin-top:12px">
+        <input id="agree" type="checkbox">
+        医師名の記載や断定的表現・誹謗中傷を含みません
+      </label>
+
+      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn" onclick="submitPost()">投稿する</button>
+        <button class="btn2" onclick="clearForm()">入力を消す</button>
+        <div id="status" class="muted" style="padding-top:10px"></div>
+      </div>
+    </div>
+
+    <div style="margin-top:40px;font-size:12px;color:#666;text-align:center;">
+      <a href="terms.html">利用規約</a> ｜ 
+      <a href="privacy.html">プライバシー</a> ｜ 
+      <a href="contact.html">通報・お問い合わせ</a>
+    </div>
+  </div>
 </body>
 </html>
